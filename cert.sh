@@ -9,8 +9,8 @@ fi
 name="$1"
 
 # Issue the certificate
-# https://dv.acme-v02.api.pki.goog/directory
-# https://dv.acme-v02.test-api.pki.goog/directory
+# production: https://dv.acme-v02.api.pki.goog/directory
+# staging: https://dv.acme-v02.test-api.pki.goog/directory
 "${HOME}/.acme.sh/acme.sh" --issue --server https://dv.acme-v02.test-api.pki.goog/directory --dns dns_bind --test -d "$name"  --keylength ec-384 --force
 
 # Check if issuing the certificate was successful
