@@ -7,30 +7,35 @@ set -e
 apt update
 apt install -y build-essential ca-certificates zlib1g-dev libpcre3 libpcre3-dev tar unzip libssl-dev wget curl git cmake ninja-build mercurial libunwind-dev pkg-config libjemalloc-dev
 
-# Install Go
-#wget https://dl.google.com/go/go1.22.1.linux-amd64.tar.gz
-#rm -rf /usr/local/go && tar -C /usr/local -xzf go1.22.1.linux-amd64.tar.gz
-#export PATH=$PATH:/usr/local/go/bin
-
-# Verify Go installation
-#go version
-
-# Compile  QuicTLS
+# Compile  QuicTLS module
 cd /usr/local/src
 wget https://github.com/quictls/openssl/archive/refs/tags/openssl-3.1.5-quic1.tar.gz
 tar -xzf openssl-3.1.5-quic1.tar.gz 
+rm openssl-3.1.5-quic1.tar.gz 
 cd openssl-openssl-3.1.5-quic1
 ./config --prefix=$(pwd)/build no-shared
 make
 make install_sw
 
-# Install Brotli compression
+# Remove existing ngx_brotli if present
+if [ -d "/usr/local/src/ngx_brotli" ]; then
+    echo "Removing existing ngx_brotli installation..."
+    rm -rf /usr/local/src/ngx_brotli
+fi
+
+# Compile Brotli compression module
 cd /usr/local/src
 git clone --recurse-submodules -j8 https://github.com/google/ngx_brotli
 cd ngx_brotli/deps/brotli
 mkdir out && cd out
 cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCMAKE_C_FLAGS="-Ofast -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_CXX_FLAGS="-Ofast -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_INSTALL_PREFIX=./installed ..
 cmake --build . --config Release --target brotlienc
+
+# Remove existing Nginx if present
+if [ -d "/usr/local/src/nginx" ]; then
+    echo "Removing existing Nginx installation..."
+    rm -rf /usr/local/src/nginx
+fi
 
 # Clone Nginx and configure with  QuicTLS and Brotli
 cd /usr/local/src
@@ -40,13 +45,17 @@ cd nginx
 make
 make install
 
-# Add Nginx user and group
+# Add Nginx user 'www' and group
 groupadd -f www
 useradd -g www -s /sbin/nologin www || true
 
-ln -s /etc/local/src/nginx/sbin/nginx /usr/sbin/nginx
 ln -s /www/nginx/sbin/nginx /usr/sbin/nginx
 
+# Check if Nginx systemd service file exists and remove
+if [ -f "/usr/lib/systemd/system/nginx.service" ]; then
+    echo "Removing existing Nginx systemd service file..."
+    rm -f /usr/lib/systemd/system/nginx.service
+fi
 # Create systemd service file for Nginx
 cat <<EOF > /usr/lib/systemd/system/nginx.service
 [Unit]
@@ -72,3 +81,5 @@ systemctl daemon-reload
 systemctl enable nginx.service
 
 echo "Nginx installed and service created. Use 'systemctl start nginx' to start Nginx."
+
+# reference: https://r2wind.cn/articles/20240307.html
